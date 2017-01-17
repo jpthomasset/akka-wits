@@ -19,7 +19,7 @@ class ServiceProxySpec extends TestKit(ActorSystem("ServiceProxySpec")) with Imp
     "request service location upon startup" in {
       val registry = TestProbe()
       
-      val fakeProxy = system.actorOf(Props(new ServiceProxy(FakeServiceTag(), registry.ref)))
+      val fakeProxy = system.actorOf(Props(new ServiceProxy(FakeServiceTag())))
 
       registry.expectMsg(LocateService(classOf[FakeServiceTag].getName, FakeServiceTag().version))
       
@@ -29,7 +29,7 @@ class ServiceProxySpec extends TestKit(ActorSystem("ServiceProxySpec")) with Imp
       val registry = TestProbe()
       val service = TestProbe()
       
-      val fakeProxy = system.actorOf(Props(new ServiceProxy(FakeServiceTag(), registry.ref)))
+      val fakeProxy = system.actorOf(Props(new ServiceProxy(FakeServiceTag())))
 
       fakeProxy ! ServiceLocation(classOf[FakeServiceTag].getName, Set(service.ref))
       fakeProxy ! FakeServiceMessage("Hello World!")

@@ -4,11 +4,11 @@ import akka.actor.{ Actor, ActorLogging, ActorRef }
 import scala.util.Random
 
 
-class ServiceProxy[T <: ServiceTag](service: T, registry: ActorRef) extends Actor with ActorLogging {
+class ServiceProxy[T <: ServiceTag](service: T, registryName: String = "WitsServiceRegistry") extends Actor with ActorLogging {
 
   val serviceName = service.getClass.getName
 
-  registry ! LocateService(serviceName, service.version)
+  context.actorSelection(self.path.root / "user" / registryName) ! LocateService(serviceName, service.version)
 
   def receive: Receive = {
     case ServiceLocation(_, actors) if !actors.isEmpty => context.become(withRemoteServices(actors))

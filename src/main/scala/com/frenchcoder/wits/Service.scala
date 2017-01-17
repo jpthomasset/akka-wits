@@ -9,6 +9,6 @@ trait ServiceTag {
 
 trait ServiceMessage
 
-abstract class ServiceActor[T <: ServiceTag](registry: ActorRef, tag: T) extends Actor {
-  registry ! RegisterService(tag.getClass.getName, tag.version, self)
+abstract class ServiceActor[T <: ServiceTag](tag: T, registryName: String = "WitsServiceRegistry") extends Actor {
+  context.actorSelection(self.path.root / "user" / registryName) ! RegisterService(tag.getClass.getName, tag.version, self)
 }

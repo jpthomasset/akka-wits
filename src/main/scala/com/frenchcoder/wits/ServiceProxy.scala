@@ -4,11 +4,11 @@ import akka.actor.{ Actor, ActorLogging, ActorRef }
 import scala.util.Random
 
 
-class ServiceProxy[T <: ServiceTag](service: T, registryName: String = "WitsServiceRegistry") extends Actor with ActorLogging {
+class ServiceProxy[T <: ServiceTag](service: T)(implicit config: ServiceRegistryConfig = ServiceRegistryDefaultConfig) extends Actor with ActorLogging {
 
   val serviceName = service.getClass.getName
 
-  context.actorSelection(self.path.root / "user" / registryName) ! LocateService(serviceName, service.version)
+  ServiceRegistry.select ! LocateService(serviceName, service.version)
 
   def receive: Receive = {
     case ServiceLocation(_, actors) if !actors.isEmpty => context.become(withRemoteServices(actors))
@@ -24,6 +24,8 @@ class ServiceProxy[T <: ServiceTag](service: T, registryName: String = "WitsServ
 
     case x:ServiceMessage => getServiceActor(remoteServices).foreach(_ forward x)
   }
+
+  override def postStop(): Unit = ServiceRegistry.select ! RemoveProxy(self)
 
   def getServiceActor(remoteServices:Set[ActorRef]): Option[ActorRef] = Random.shuffle(remoteServices).headOption
 }

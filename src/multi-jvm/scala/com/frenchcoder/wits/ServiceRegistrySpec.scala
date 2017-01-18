@@ -56,95 +56,80 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
     probe.expectTerminated(actor)
   }
 
-  
+
   "A local ServiceRegistry" should {
+
     "inform no service available on startup" in {
       
-      ServiceRegistry.create()
-      system.actorSelection("/user/WitsServiceRegistry") ! LocateService("MyService", 1)
+      ServiceRegistry.create
+      ServiceRegistry.selectFromSystem ! LocateService("MyService", 1)
       expectMsg(ServiceUnavailable("MyService"))
+      ServiceRegistry.selectFromSystem ! RemoveProxy(self)
       
     }
 
-    "register local service" in {
-      
-      system.actorSelection("/user/WitsServiceRegistry") ! RegisterService("MyService", 1, self)
-      system.actorSelection("/user/WitsServiceRegistry") ! LocateService("MyService", 1)
-      expectMsg(ServiceLocation("MyService", Set(self)))
-      
-    }
-
-    "unregister when service dies" in {
+    "register local service and unregister when it dies" in {
       val probe = TestProbe()
-      system.actorSelection("/user/WitsServiceRegistry") ! RegisterService("MyService", 1, probe.ref)
+      ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe.ref)
+      ServiceRegistry.selectFromSystem ! LocateService("MyService", 1)
+      expectMsg(ServiceLocation("MyService", Set(probe.ref)))
       poison(probe.ref)
-      system.actorSelection("/user/WitsServiceRegistry") ! LocateService("MyService", 1)
       expectMsg(ServiceUnavailable("MyService"))
-      
+      ServiceRegistry.selectFromSystem ! RemoveProxy(self)
     }
 
-    "inform local proxy when service become available" in {
+
+    "inform local proxy when service become available and unavailable" in {
       
       val probe = TestProbe()
 
-      system.actorSelection("/user/WitsServiceRegistry") ! LocateService("MyService", 1)
+      ServiceRegistry.selectFromSystem ! LocateService("MyService", 1)
       expectMsg(ServiceUnavailable("MyService"))
 
-      system.actorSelection("/user/WitsServiceRegistry") ! RegisterService("MyService", 1, probe.ref)
+      ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe.ref)
       expectMsg(ServiceLocation("MyService", Set(probe.ref)))
 
       poison(probe.ref)
-    }
-
-    "inform local proxy when service become unavailable" in {
-      
-      val probe = TestProbe()
-
-      system.actorSelection("/user/WitsServiceRegistry") ! LocateService("MyService", 1)
       expectMsg(ServiceUnavailable("MyService"))
 
-      system.actorSelection("/user/WitsServiceRegistry") ! RegisterService("MyService", 1, probe.ref)
-      expectMsg(ServiceLocation("MyService", Set(probe.ref)))
-
-      poison(probe.ref)
-
-      expectMsg(ServiceUnavailable("MyService"))
-      
+      ServiceRegistry.selectFromSystem ! RemoveProxy(self)
     }
+
 
     "inform local proxy when a new service register itself" in {
       
       val probe = TestProbe()
       val probe2 = TestProbe()
 
-      system.actorSelection("/user/WitsServiceRegistry") ! RegisterService("MyService", 1, probe.ref)
-      system.actorSelection("/user/WitsServiceRegistry") ! LocateService("MyService", 1)
+      ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe.ref)
+      ServiceRegistry.selectFromSystem ! LocateService("MyService", 1)
       expectMsg(ServiceLocation("MyService", Set(probe.ref)))
-      system.actorSelection("/user/WitsServiceRegistry") ! RegisterService("MyService", 1, probe2.ref)
+      ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe2.ref)
       expectMsg(ServiceLocation("MyService", Set(probe.ref, probe2.ref)))
       poison(probe.ref)
       poison(probe2.ref)
-    }
-  }
 
-  "A remote service registry" should {
-    testConductor.enter("all-up")
-    "Send remote service list to other registry when they join" in {
-      runOn(node1) {
-        val probe = TestProbe()
-        system.actorSelection("/user/WitsServiceRegistry") ! RegisterService("MyService", 1, probe.ref)
-        testConductor.enter("node1-with-service")
-      }
-
-      runOn(node2) {
-        testConductor.enter("node1-with-service")
-        Cluster(system) join node(node1).address
-        system.actorSelection("/user/WitsServiceRegistry") ! LocateService("MyService", 1)
-        expectMsgPF() {
-          case ServiceLocation("MyService", _) => ()
-        }
-      }
     }
+
   }
+  // "A remote service registry" should {
+  //   testConductor.enter("all-up")
+  //   "Send remote service list to other registry when they join" in {
+  //     runOn(node1) {
+  //       val probe = TestProbe()
+  //       ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe.ref)
+  //       testConductor.enter("node1-with-service")
+  //     }
+
+  //     runOn(node2) {
+  //       testConductor.enter("node1-with-service")
+  //       Cluster(system) join node(node1).address
+  //       ServiceRegistry.selectFromSystem ! LocateService("MyService", 1)
+  //       expectMsgPF() {
+  //         case ServiceLocation("MyService", _) => ()
+  //       }
+  //     }
+  //   }
+  // }
 
 }

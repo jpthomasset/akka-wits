@@ -28,7 +28,7 @@ lazy val root = (project in file("."))
     commonSettings,
     libraryDependencies ++= dependencies ++ testDependencies,
     compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
-    parallelExecution in Test := false,
+    parallelExecution in Global := false,
     executeTests in Test <<= (executeTests in Test, executeTests in MultiJvm) map {
       case (testResults, multiNodeResults)  =>
         val overall =

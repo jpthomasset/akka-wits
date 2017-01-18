@@ -1,6 +1,6 @@
 package com.frenchcoder.wits
 
-import akka.actor.{ Actor, ActorRef }
+import akka.actor.{ Actor }
 
 
 trait ServiceTag {
@@ -9,6 +9,6 @@ trait ServiceTag {
 
 trait ServiceMessage
 
-abstract class ServiceActor[T <: ServiceTag](tag: T, registryName: String = "WitsServiceRegistry") extends Actor {
-  context.actorSelection(self.path.root / "user" / registryName) ! RegisterService(tag.getClass.getName, tag.version, self)
+abstract class ServiceActor[T <: ServiceTag](tag: T)(implicit config: ServiceRegistryConfig = ServiceRegistryDefaultConfig) extends Actor {
+  ServiceRegistry.select ! RegisterService(tag.getClass.getName, tag.version, self)
 }

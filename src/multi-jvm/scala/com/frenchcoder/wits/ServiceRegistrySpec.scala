@@ -2,6 +2,7 @@ package com.frenchcoder.wits
 
 import akka.actor.{ ActorRef, ActorSystem, Props }
 import akka.cluster.Cluster
+import akka.cluster.ClusterEvent.{ CurrentClusterState, MemberUp }
 import akka.remote.testkit.{ MultiNodeConfig, MultiNodeSpecCallbacks, MultiNodeSpec }
 import akka.testkit.{ ImplicitSender, TestKit, TestProbe }
 import _root_.com.typesafe.config.ConfigFactory
@@ -108,28 +109,46 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
       expectMsg(ServiceLocation("MyService", Set(probe.ref, probe2.ref)))
       poison(probe.ref)
       poison(probe2.ref)
+      ignoreMsg { case ServiceLocation(_,_) => true }
+      expectMsg(ServiceUnavailable("MyService"))
+      ServiceRegistry.selectFromSystem ! RemoveProxy(self)
 
     }
 
   }
-  // "A remote service registry" should {
-  //   testConductor.enter("all-up")
-  //   "Send remote service list to other registry when they join" in {
-  //     runOn(node1) {
-  //       val probe = TestProbe()
-  //       ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe.ref)
-  //       testConductor.enter("node1-with-service")
-  //     }
+  "A remote service registry" should {
+    testConductor.enter("ready-to-join")
+    runOn(node1) {
+      "register a service on node1" in {
+     
+        val probe = TestProbe()
+        ServiceRegistry.selectFromSystem ! RegisterService("ServiceNode1", 1, probe.ref)
+        
+      }
+    }
 
-  //     runOn(node2) {
-  //       testConductor.enter("node1-with-service")
-  //       Cluster(system) join node(node1).address
-  //       ServiceRegistry.selectFromSystem ! LocateService("MyService", 1)
-  //       expectMsgPF() {
-  //         case ServiceLocation("MyService", _) => ()
-  //       }
-  //     }
-  //   }
-  // }
+    
+    "join cluster" in {
+      Cluster(system).subscribe(testActor, classOf[MemberUp])
+      expectMsgClass(classOf[CurrentClusterState])
+
+      val firstAddress = node(node1).address
+      val secondAddress = node(node2).address
+
+      Cluster(system) join firstAddress
+
+      testConductor.enter("cluster-up")
+    }
+
+    runOn(node2) {
+      "make service available on node2 when joining cluster" in {
+    
+        ServiceRegistry.selectFromSystem ! LocateService("ServiceNode1", 1)
+        expectMsgPF() {
+          case ServiceLocation("ServiceNode1", _) => ()
+        }
+      }
+    }
+  }
 
 }

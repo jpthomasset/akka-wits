@@ -8,8 +8,8 @@ sealed trait ServiceRegistryMessages
 case class RegisterService(name: String, version: Int, actorRef: ActorRef, isLocal: Boolean = true) extends ServiceRegistryMessages
 case class LocateService(name: String, version: Int) extends ServiceRegistryMessages
 case class RemoveProxy(actorRef: ActorRef) extends ServiceRegistryMessages
-case class ServiceUnavailable(name: String) extends ServiceRegistryMessages
-case class ServiceLocation(name: String, locations: Set[ActorRef]) extends ServiceRegistryMessages
+case class ServiceUnavailable(name: String, version: Int) extends ServiceRegistryMessages
+case class ServiceLocation(name: String, version: Int, locations: Set[ActorRef]) extends ServiceRegistryMessages
 
 object ServiceRegistry {
   def select(implicit context: ActorContext, config: ServiceRegistryConfig = ServiceRegistryDefaultConfig): ActorSelection =
@@ -46,15 +46,15 @@ private[wits] class ServiceRegistry(name: String) extends Actor with ActorLoggin
     case LocateService(name, version) =>
       val l = getServiceLocations(services, name, version)
 
-      if(l.isEmpty) sender() ! ServiceUnavailable(name)
-      else sender() ! ServiceLocation(name, l)
+      if(l.isEmpty) sender() ! ServiceUnavailable(name, version)
+      else sender() ! ServiceLocation(name, version, l)
 
       context.become(withServices(services, proxies + ServiceDescription(name, version, sender()), members))
 
     case RegisterService(name, version, actorRef, isLocal) =>
       context.watch(actorRef)
       val newServices = services + ServiceDescription(name, version, actorRef, isLocal)
-      getServiceLocations(proxies, name, version).foreach(_ ! ServiceLocation(name, getServiceLocations(newServices, name, version)))
+      getServiceLocations(proxies, name, version).foreach(_ ! ServiceLocation(name, version, getServiceLocations(newServices, name, version)))
       if(isLocal) {
         members.foreach(m => remoteRegistry(m) ! RegisterService(name, version, actorRef, false))
       }
@@ -71,9 +71,9 @@ private[wits] class ServiceRegistry(name: String) extends Actor with ActorLoggin
       ) {
         val newLocations = getServiceLocations(newServices, related.name, related.version)
         if (newLocations.isEmpty) 
-          relatedProxy ! ServiceUnavailable(related.name)
+          relatedProxy ! ServiceUnavailable(related.name, related.version)
         else 
-          relatedProxy ! ServiceLocation(related.name, newLocations)
+          relatedProxy ! ServiceLocation(related.name, related.version, newLocations)
       }
       context.become(withServices(newServices, proxies, members))
 

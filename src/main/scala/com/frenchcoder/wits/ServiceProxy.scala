@@ -11,14 +11,14 @@ class ServiceProxy[T <: ServiceTag](service: T)(implicit config: ServiceRegistry
   ServiceRegistry.select ! LocateService(serviceName, service.version)
 
   def receive: Receive = {
-    case ServiceLocation(_, actors) if !actors.isEmpty => context.become(withRemoteServices(actors))
+    case ServiceLocation(_, _, actors) if !actors.isEmpty => context.become(withRemoteServices(actors))
 
-    case x:ServiceMessage => sender() ! ServiceUnavailable(serviceName)
+    case x:ServiceMessage => sender() ! ServiceUnavailable(serviceName, service.version)
   }
 
   def withRemoteServices(remoteServices: Set[ActorRef]): Receive = {
 
-    case ServiceLocation(_, actors) =>
+    case ServiceLocation(_, _, actors) =>
       if (!actors.isEmpty) context.become(withRemoteServices(actors))
       else context.become(receive)
 

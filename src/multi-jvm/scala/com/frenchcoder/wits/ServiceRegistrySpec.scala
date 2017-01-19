@@ -64,7 +64,7 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
       
       ServiceRegistry.create
       ServiceRegistry.selectFromSystem ! LocateService("MyService", 1)
-      expectMsg(ServiceUnavailable("MyService"))
+      expectMsg(ServiceUnavailable("MyService", 1))
       ServiceRegistry.selectFromSystem ! RemoveProxy(self)
       
     }
@@ -73,9 +73,9 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
       val probe = TestProbe()
       ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe.ref)
       ServiceRegistry.selectFromSystem ! LocateService("MyService", 1)
-      expectMsg(ServiceLocation("MyService", Set(probe.ref)))
+      expectMsg(ServiceLocation("MyService", 1, Set(probe.ref)))
       poison(probe.ref)
-      expectMsg(ServiceUnavailable("MyService"))
+      expectMsg(ServiceUnavailable("MyService", 1))
       ServiceRegistry.selectFromSystem ! RemoveProxy(self)
     }
 
@@ -85,13 +85,13 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
       val probe = TestProbe()
 
       ServiceRegistry.selectFromSystem ! LocateService("MyService", 1)
-      expectMsg(ServiceUnavailable("MyService"))
+      expectMsg(ServiceUnavailable("MyService", 1))
 
       ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe.ref)
-      expectMsg(ServiceLocation("MyService", Set(probe.ref)))
+      expectMsg(ServiceLocation("MyService", 1, Set(probe.ref)))
 
       poison(probe.ref)
-      expectMsg(ServiceUnavailable("MyService"))
+      expectMsg(ServiceUnavailable("MyService", 1))
 
       ServiceRegistry.selectFromSystem ! RemoveProxy(self)
     }
@@ -104,13 +104,13 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
 
       ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe.ref)
       ServiceRegistry.selectFromSystem ! LocateService("MyService", 1)
-      expectMsg(ServiceLocation("MyService", Set(probe.ref)))
+      expectMsg(ServiceLocation("MyService", 1, Set(probe.ref)))
       ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe2.ref)
-      expectMsg(ServiceLocation("MyService", Set(probe.ref, probe2.ref)))
+      expectMsg(ServiceLocation("MyService", 1, Set(probe.ref, probe2.ref)))
       poison(probe.ref)
-      expectMsg(ServiceLocation("MyService", Set(probe2.ref)))
+      expectMsg(ServiceLocation("MyService", 1, Set(probe2.ref)))
       poison(probe2.ref)
-      expectMsg(ServiceUnavailable("MyService"))
+      expectMsg(ServiceUnavailable("MyService", 1))
       ServiceRegistry.selectFromSystem ! RemoveProxy(self)
 
     }
@@ -148,10 +148,10 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
     
         ServiceRegistry.selectFromSystem ! LocateService("ServiceNode1", 1)
         ignoreMsg {
-          case ServiceUnavailable(_) => true
+          case ServiceUnavailable(_, _) => true
         }
         expectMsgPF() {
-          case ServiceLocation("ServiceNode1", _) => ()
+          case ServiceLocation("ServiceNode1", 1, _) => ()
         }
       }
     }
@@ -170,10 +170,10 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
 
         ServiceRegistry.selectFromSystem ! LocateService("ServiceNode2", 1)
         ignoreMsg {
-          case ServiceUnavailable("ServiceNode2") => println("got unavailable"); true
+          case ServiceUnavailable("ServiceNode2", 1) => println("got unavailable"); true
         }
         expectMsgPF() {
-          case ServiceLocation("ServiceNode2", _) => ()
+          case ServiceLocation("ServiceNode2", 1, _) => ()
         }
       }
     }
@@ -190,10 +190,10 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
         testConductor.enter("service2-node1")
         ServiceRegistry.selectFromSystem ! LocateService("Service2Node1", 1)
         ignoreMsg {
-          case ServiceUnavailable("Service2Node1") => true
+          case ServiceUnavailable("Service2Node1", 1) => true
         }
         expectMsgPF() {
-          case ServiceLocation("Service2Node1", locations) => locations.foreach(_ ! "Hello world!")
+          case ServiceLocation("Service2Node1", 1, locations) => locations.foreach(_ ! "Hello world!")
         }
       }
     }

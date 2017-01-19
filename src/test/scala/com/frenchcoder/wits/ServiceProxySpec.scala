@@ -33,7 +33,7 @@ class ServiceProxySpec extends TestKit(ActorSystem("ServiceProxySpec")) with Imp
       
       val fakeProxy = system.actorOf(Props(new ServiceProxy(FakeServiceTag())))
 
-      fakeProxy ! ServiceLocation(classOf[FakeServiceTag].getName, Set(service.ref))
+      fakeProxy ! ServiceLocation(classOf[FakeServiceTag].getName, FakeServiceTag().version, Set(service.ref))
       fakeProxy ! FakeServiceMessage("Hello World!")
       service.expectMsg(FakeServiceMessage("Hello World!"))
 

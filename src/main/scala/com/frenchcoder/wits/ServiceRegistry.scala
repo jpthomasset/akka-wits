@@ -1,6 +1,8 @@
 package com.frenchcoder.wits
 
-import akka.actor.{ Actor, ActorContext, ActorLogging, ActorPath, ActorRef, ActorSelection, ActorSystem, Props, Terminated }
+import akka.actor.{ Actor, ActorContext, ActorLogging, ActorPath, ActorRef, ActorSelection, ActorSystem, Props, RootActorPath, Terminated }
+import akka.cluster.{ Cluster, Member }
+import akka.cluster.ClusterEvent.MemberUp
 
 sealed trait ServiceRegistryMessages
 case class RegisterService(name: String, version: Int, actorRef: ActorRef, isLocal: Boolean = true) extends ServiceRegistryMessages
@@ -29,31 +31,37 @@ private[wits] class ServiceRegistry(name: String) extends Actor with ActorLoggin
   case class ServiceName(name: String, version: Int)
   type ServiceMap = Set[ServiceDescription]
 
-  //val cluster = Cluster(context.system)
-
   log.debug(s"Starting ServiceRegistry $self")
 
-  context.become(withServices(Set.empty, Set.empty))
+  val cluster = Cluster(context.system)
+
+  override def preStart(): Unit = cluster.subscribe(self, classOf[MemberUp])
+  override def postStop(): Unit = cluster.unsubscribe(self)
+
+  context.become(withServices(Set.empty, Set.empty, Set.empty))
 
   def receive = Actor.emptyBehavior
 
-  def withServices(services: ServiceMap, proxies: ServiceMap): Receive = {
+  def withServices(services: ServiceMap, proxies: ServiceMap, members: Set[Member]): Receive = {
     case LocateService(name, version) =>
       val l = getServiceLocations(services, name, version)
 
       if(l.isEmpty) sender() ! ServiceUnavailable(name)
       else sender() ! ServiceLocation(name, l)
 
-      context.become(withServices(services, proxies + ServiceDescription(name, version, sender())))
+      context.become(withServices(services, proxies + ServiceDescription(name, version, sender()), members))
 
     case RegisterService(name, version, actorRef, isLocal) =>
       context.watch(actorRef)
       val newServices = services + ServiceDescription(name, version, actorRef, isLocal)
       getServiceLocations(proxies, name, version).foreach(_ ! ServiceLocation(name, getServiceLocations(newServices, name, version)))
-      context.become(withServices(newServices, proxies))
+      if(isLocal) {
+        members.foreach(m => remoteRegistry(m) ! RegisterService(name, version, actorRef, false))
+      }
+      context.become(withServices(newServices, proxies, members))
 
     case RemoveProxy(actor) =>
-      context.become(withServices(services, removeService(proxies, actor)))
+      context.become(withServices(services, removeService(proxies, actor), members))
 
     case Terminated(a) =>
       
@@ -67,9 +75,17 @@ private[wits] class ServiceRegistry(name: String) extends Actor with ActorLoggin
         else 
           relatedProxy ! ServiceLocation(related.name, newLocations)
       }
-      context.become(withServices(newServices, proxies))
+      context.become(withServices(newServices, proxies, members))
+
+    case MemberUp(m) =>
+      val reg = remoteRegistry(m)
+
+      services.filter(_.isLocal == true).foreach(s => reg ! RegisterService(s.name, s.version, s.actorRef, false))
+      context.become(withServices(services, proxies, members + m))
+
   }
 
+  private def remoteRegistry(m: Member): ActorSelection = context.actorSelection(RootActorPath(m.address) / "user" / name)
 
   private def removeService(services: ServiceMap, actorRef: ActorRef): ServiceMap = {
     services.filterNot(_.actorRef == actorRef)

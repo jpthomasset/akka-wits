@@ -108,8 +108,8 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
       ServiceRegistry.selectFromSystem ! RegisterService("MyService", 1, probe2.ref)
       expectMsg(ServiceLocation("MyService", Set(probe.ref, probe2.ref)))
       poison(probe.ref)
+      expectMsg(ServiceLocation("MyService", Set(probe2.ref)))
       poison(probe2.ref)
-      ignoreMsg { case ServiceLocation(_,_) => true }
       expectMsg(ServiceUnavailable("MyService"))
       ServiceRegistry.selectFromSystem ! RemoveProxy(self)
 
@@ -137,6 +137,9 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
 
       Cluster(system) join firstAddress
 
+      receiveN(2).collect { case MemberUp(m) => m.address }.toSet should be(
+        Set(firstAddress, secondAddress))
+      
       testConductor.enter("cluster-up")
     }
 
@@ -144,8 +147,53 @@ abstract class ServiceRegistrySpec extends MultiNodeSpec(ServiceRegistrySpecConf
       "make service available on node2 when joining cluster" in {
     
         ServiceRegistry.selectFromSystem ! LocateService("ServiceNode1", 1)
+        ignoreMsg {
+          case ServiceUnavailable(_) => true
+        }
         expectMsgPF() {
           case ServiceLocation("ServiceNode1", _) => ()
+        }
+      }
+    }
+
+    runOn(node2) {
+      "register a service on node 2" in {
+        val probe = TestProbe()
+        ServiceRegistry.selectFromSystem ! RegisterService("ServiceNode2", 1, probe.ref)
+        testConductor.enter("service-node-2")
+      }
+    }
+
+    runOn(node1) {
+      "make service available on node 1" in {
+        testConductor.enter("service-node-2")
+
+        ServiceRegistry.selectFromSystem ! LocateService("ServiceNode2", 1)
+        ignoreMsg {
+          case ServiceUnavailable("ServiceNode2") => println("got unavailable"); true
+        }
+        expectMsgPF() {
+          case ServiceLocation("ServiceNode2", _) => ()
+        }
+      }
+    }
+
+    "forward remote service address between nodes" in {
+      runOn(node1) {
+        val service = TestProbe()
+        ServiceRegistry.selectFromSystem ! RegisterService("Service2Node1", 1, service.ref)
+        testConductor.enter("service2-node1")
+        service.expectMsg("Hello world!")
+      }
+
+      runOn(node2) {
+        testConductor.enter("service2-node1")
+        ServiceRegistry.selectFromSystem ! LocateService("Service2Node1", 1)
+        ignoreMsg {
+          case ServiceUnavailable("Service2Node1") => true
+        }
+        expectMsgPF() {
+          case ServiceLocation("Service2Node1", locations) => locations.foreach(_ ! "Hello world!")
         }
       }
     }

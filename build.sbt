@@ -43,3 +43,10 @@ lazy val root = (project in file("."))
   )
   .configs (MultiJvm)
 
+lazy val sample = (project in file("sample"))
+  .settings(
+    name := "akka-wits-sample",
+    commonSettings,
+    libraryDependencies ++= dependencies
+  )
+  .dependsOn(root)

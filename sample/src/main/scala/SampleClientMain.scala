@@ -8,7 +8,7 @@ object SampleClientMain {
 
   def main(args: Array[String]): Unit = {
 
-    val port = 2551
+    val port = if(args.isEmpty) "2551" else args(0)
 
     val config = ConfigFactory.parseString("akka.remote.netty.tcp.port=" + port).
         withFallback(ConfigFactory.load())

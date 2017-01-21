@@ -22,6 +22,8 @@ class ServiceProxy[T <: ServiceTag](service: T)(implicit config: ServiceRegistry
       if (!actors.isEmpty) context.become(withRemoteServices(actors))
       else context.become(receive)
 
+    case ServiceUnavailable(_,_) => context.become(receive)
+
     case x:ServiceMessage => getServiceActor(remoteServices).foreach(_ forward x)
   }
 

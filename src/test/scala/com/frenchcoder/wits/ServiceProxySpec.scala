@@ -40,5 +40,18 @@ class ServiceProxySpec extends TestKit(ActorSystem("ServiceProxySpec")) with Imp
       system.stop(fakeProxy)
     }
 
+    "inform when service become unavailable" in {
+      val service = TestProbe()
+      
+      val fakeProxy = system.actorOf(Props(new ServiceProxy(FakeServiceTag())))
+
+      fakeProxy ! ServiceLocation(classOf[FakeServiceTag].getName, FakeServiceTag().version, Set(service.ref))
+      fakeProxy ! ServiceUnavailable(classOf[FakeServiceTag].getName, FakeServiceTag().version)
+      fakeProxy ! FakeServiceMessage("Hello World!")
+      expectMsg(ServiceUnavailable(classOf[FakeServiceTag].getName, FakeServiceTag().version))
+
+      system.stop(fakeProxy)
+    }
+
   }
 }

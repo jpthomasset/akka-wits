@@ -18,13 +18,16 @@ val testDependencies = Seq(
 lazy val commonSettings = Seq(
   organization := "com.frenchcoder",
   version := "0.1.0-SNAPSHOT",
-  scalaVersion := "2.11.8"
+  scalaVersion := "2.11.8",
+  licenses := Seq("Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")),
+  homepage := Some(url("https://github.com/jpthomasset/akka-wits"))
 )
 
 lazy val root = (project in file("."))
   .settings(SbtMultiJvm.multiJvmSettings: _*)
   .settings(
     name := "akka-wits",
+    description := "Akka cluster service locator",
     commonSettings,
     libraryDependencies ++= dependencies ++ testDependencies,
     compile in MultiJvm <<= (compile in MultiJvm) triggeredBy (compile in Test),
@@ -47,6 +50,29 @@ lazy val sample = (project in file("sample"))
   .settings(
     name := "akka-wits-sample",
     commonSettings,
-    libraryDependencies ++= dependencies
+    libraryDependencies ++= dependencies,
+    publishArtifact := false
   )
   .dependsOn(root)
+
+/* Publishing informations */
+pomExtra := (
+    <scm>
+      <url>https://github.com/jpthomasset/akka-wits</url>
+      <connection>scm:git@github.com:jpthomasset/akka-wits.git</connection>
+    </scm>
+    <developers>
+      <developer>
+        <id>jpthomasset</id>
+        <name>Jean-Pierre Thomasset</name>
+        <url>https://github.com/jpthomasset/</url>
+      </developer>
+    </developers>)
+
+publishTo := {
+  val nexus = "https://oss.sonatype.org/"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+}
